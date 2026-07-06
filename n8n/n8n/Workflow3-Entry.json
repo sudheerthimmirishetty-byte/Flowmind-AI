@@ -1,0 +1,172 @@
+{
+  "name": "FlowMind Workflow Completion",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "4c0001-0000-4000-8000-000000000001",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.all()[0].json;\n\nconst departmentResults = data.departmentResults || [];\n\nconst totalDepartments = departmentResults.length;\nconst completedDepartments = departmentResults.filter(d => d.status === 'Completed').length;\nconst failedDepartments = departmentResults.filter(d => d.status === 'Failed').length;\n\nlet workflowStatus;\nif (totalDepartments > 0 && completedDepartments === totalDepartments) {\n  workflowStatus = 'Completed';\n} else if (completedDepartments > 0) {\n  workflowStatus = 'Partially Completed';\n} else {\n  workflowStatus = 'Failed';\n}\n\nconst totalTasks = departmentResults.reduce((sum, d) => sum + (Array.isArray(d.tasksCompleted) ? d.tasksCompleted.length : 0), 0);\nconst completedTasks = departmentResults\n  .filter(d => d.status === 'Completed')\n  .reduce((sum, d) => sum + (Array.isArray(d.tasksCompleted) ? d.tasksCompleted.length : 0), 0);\n\nconst progressPercentage = totalDepartments > 0 ? Math.round((completedDepartments / totalDepartments) * 100) : 0;\n\nconst workflowStartedAt = data.executionStartedAt || null;\nconst workflowCompletedAt = new Date().toISOString();\nconst totalExecutionTime = workflowStartedAt ? (new Date(workflowCompletedAt).getTime() - new Date(workflowStartedAt).getTime()) : null;\n\nconst timeline = departmentResults.map(d => ({\n  department: d.department,\n  startedAt: d.startedAt || null,\n  completedAt: d.completedAt || null,\n  duration: d.duration || null,\n  status: d.status\n}));\n\nconst departmentSummary = departmentResults.map(d => ({\n  department: d.department,\n  status: d.status,\n  completedTasks: Array.isArray(d.tasksCompleted) ? d.tasksCompleted.length : 0,\n  duration: d.duration || null\n}));\n\nconst dashboard = {\n  activeWorkflows: workflowStatus === 'Completed' ? 0 : 1,\n  pendingWorkflows: 0,\n  completedWorkflows: workflowStatus === 'Completed' ? 1 : 0,\n  overallProgress: progressPercentage,\n  currentWorkflowStatus: workflowStatus,\n  lastUpdated: workflowCompletedAt\n};\n\nconst notifications = departmentResults.map(d => ({\n  message: `${d.department} ${d.status === 'Completed' ? 'completed' : String(d.status).toLowerCase()}`,\n  department: d.department,\n  status: d.status,\n  timestamp: d.completedAt || workflowCompletedAt\n}));\n\nnotifications.push({\n  message: `Workflow ${workflowStatus}`,\n  department: null,\n  status: workflowStatus,\n  timestamp: workflowCompletedAt\n});\n\nlet documentsCount = 0;\nif (data.documents) {\n  documentsCount = Array.isArray(data.documents) ? data.documents.length : Object.keys(data.documents).length;\n}\n\nlet statusPhrase;\nif (workflowStatus === 'Completed') {\n  statusPhrase = 'All departments completed successfully.';\n} else if (workflowStatus === 'Partially Completed') {\n  statusPhrase = 'Some departments completed while others did not finish.';\n} else {\n  statusPhrase = 'The workflow did not complete successfully.';\n}\n\nconst aiResponse = `I analyzed the ${data.workflow || 'requested'} workflow. ${statusPhrase} ${completedTasks} of ${totalTasks} tasks completed across ${completedDepartments} of ${totalDepartments} departments. ${documentsCount} documents generated. Workflow ${workflowStatus.toLowerCase()}.`;\n\nreturn [{\n  json: {\n    workflowStatus,\n    executionStatistics: {\n      totalDepartments,\n      completedDepartments,\n      failedDepartments,\n      totalTasks,\n      completedTasks,\n      progressPercentage,\n      totalExecutionTime,\n      workflowStartedAt,\n      workflowCompletedAt\n    },\n    timeline,\n    departmentSummary,\n    dashboard,\n    notifications,\n    aiResponse\n  }\n}];"
+      },
+      "id": "4c0002-0000-4000-8000-000000000002",
+      "name": "Code - Calculate Completion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "success",
+              "name": "success",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "workflowId",
+              "name": "workflowId",
+              "value": "={{$('Execute Workflow Trigger').item.json.workflowId}}",
+              "type": "string"
+            },
+            {
+              "id": "workflow",
+              "name": "workflow",
+              "value": "={{$('Execute Workflow Trigger').item.json.workflow}}",
+              "type": "string"
+            },
+            {
+              "id": "workflowStatus",
+              "name": "workflowStatus",
+              "value": "={{$json.workflowStatus}}",
+              "type": "string"
+            },
+            {
+              "id": "executionStatistics",
+              "name": "executionStatistics",
+              "value": "={{$json.executionStatistics}}",
+              "type": "object"
+            },
+            {
+              "id": "timeline",
+              "name": "timeline",
+              "value": "={{$json.timeline}}",
+              "type": "array"
+            },
+            {
+              "id": "departmentSummary",
+              "name": "departmentSummary",
+              "value": "={{$json.departmentSummary}}",
+              "type": "array"
+            },
+            {
+              "id": "dashboard",
+              "name": "dashboard",
+              "value": "={{$json.dashboard}}",
+              "type": "object"
+            },
+            {
+              "id": "notifications",
+              "name": "notifications",
+              "value": "={{$json.notifications}}",
+              "type": "array"
+            },
+            {
+              "id": "aiResponse",
+              "name": "aiResponse",
+              "value": "={{$json.aiResponse}}",
+              "type": "string"
+            },
+            {
+              "id": "employee",
+              "name": "employee",
+              "value": "={{$('Execute Workflow Trigger').item.json.employee}}",
+              "type": "object"
+            },
+            {
+              "id": "workflowPlan",
+              "name": "workflowPlan",
+              "value": "={{$('Execute Workflow Trigger').item.json.workflowPlan}}",
+              "type": "object"
+            },
+            {
+              "id": "departmentTasks",
+              "name": "departmentTasks",
+              "value": "={{$('Execute Workflow Trigger').item.json.departmentTasks}}",
+              "type": "object"
+            },
+            {
+              "id": "documents",
+              "name": "documents",
+              "value": "={{$('Execute Workflow Trigger').item.json.documents}}",
+              "type": "object"
+            },
+            {
+              "id": "recommendations",
+              "name": "recommendations",
+              "value": "={{$('Execute Workflow Trigger').item.json.recommendations}}",
+              "type": "object"
+            },
+            {
+              "id": "summary",
+              "name": "summary",
+              "value": "={{$('Execute Workflow Trigger').item.json.summary}}",
+              "type": "object"
+            },
+            {
+              "id": "metadata",
+              "name": "metadata",
+              "value": "={{$('Execute Workflow Trigger').item.json.metadata}}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4c0003-0000-4000-8000-000000000003",
+      "name": "Set - Final Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [700, 300]
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code - Calculate Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Calculate Completion": {
+      "main": [
+        [
+          {
+            "node": "Set - Final Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}
